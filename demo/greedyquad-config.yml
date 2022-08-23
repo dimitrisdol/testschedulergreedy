@@ -1,0 +1,45 @@
+apiVersion: kubescheduler.config.k8s.io/v1beta1
+kind: KubeSchedulerConfiguration
+leaderElection:
+  # (Optional) Change true to false if you are not running a HA control-plane.
+  leaderElect: true
+clientConnection:
+  kubeconfig: /etc/kubernetes/scheduler.conf
+profiles:
+- schedulerName: default-scheduler
+  plugins:
+    #queueSort:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    #  disabled:
+    #  - name: "*"
+    #preFilter:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    filter:
+      enabled:
+      - name: GreedyQuadPlugin
+    #postFilter:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    #preScore:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    score:
+      enabled:
+      - name: GreedyQuadPlugin
+    #reserve:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    #permit:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    #preBind:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    #bind:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
+    #postBind:
+    #  enabled:
+    #  - name: GreedyQuadPlugin
