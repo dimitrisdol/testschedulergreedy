@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	informers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
 )
 
 const (
@@ -68,6 +69,12 @@ func (_ *GreedyQuadPlugin) findCurrentOccupants(nodeInfo *framework.NodeInfo) []
 			}
 		}
 	}
+	
+	var actinodelister listers.ActiNodeLister
+	
+	actinode, err := c.actinodelister.ActiNodes(actinodelister, "acti-ns").Get("kind-worker")
+	if err != nil {
+		klog.V(2).Infof("Here is the actinode", actinode)
 	return ret
 }
 
@@ -343,3 +350,20 @@ func (_ *GreedyQuadPlugin) NormalizeScore(
 	}
 	return framework.NewStatus(framework.Success)
 }
+Footer
+© 2022 GitHub, Inc.
+Footer navigation
+
+    Terms
+    Privacy
+    Security
+    Status
+    Docs
+    Contact GitHub
+    Pricing
+    API
+    Training
+    Blog
+    About
+
+You have unread notifications

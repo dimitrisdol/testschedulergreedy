@@ -1,12 +1,12 @@
-module github.com/dimitrisdol/greedyquadScheduler
+module github.com/dimitrisdol/testschedulergreedy
 
 go 1.16
 
 require (
-	github.com/go-logr/logr v0.4.0 // indirect
-	k8s.io/api v0.20.4
-	k8s.io/apimachinery v0.20.4
-	k8s.io/klog/v2 v2.4.0
+	github.com/ckatsak/acticrds-go v0.0.0-20220717100146-fbb2b6ff534c
+	k8s.io/api v0.21.5
+	k8s.io/apimachinery v0.21.5
+	k8s.io/klog/v2 v2.8.0
 	k8s.io/kube-scheduler v0.20.4 // indirect
 	k8s.io/kubernetes v1.20.4
 	k8s.io/mount-utils v0.20.4 // indirect

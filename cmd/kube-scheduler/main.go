@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/dimitrisdol/greedyquadScheduler/greedyquad"
+	"github.com/dimitrisdol/testschedulergreedy/greedyquad"
 
 	"k8s.io/klog/v2"
 	sched "k8s.io/kubernetes/cmd/kube-scheduler/app"
