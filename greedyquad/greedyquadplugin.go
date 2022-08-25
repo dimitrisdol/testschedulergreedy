@@ -6,12 +6,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dimitrisdol/greedyquadScheduler/greedyquad/hardcoded"
+	"github.com/dimitrisdol/testschedulergreedy/greedyquad/hardcoded"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	informers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
+	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
 )
 
 const (
@@ -69,12 +69,6 @@ func (_ *GreedyQuadPlugin) findCurrentOccupants(nodeInfo *framework.NodeInfo) []
 			}
 		}
 	}
-	
-	var actinodelister listers.ActiNodeLister
-	
-	actinode, err := c.actinodelister.ActiNodes(actinodelister, "acti-ns").Get("kind-worker")
-	if err != nil {
-		klog.V(2).Infof("Here is the actinode", actinode)
 	return ret
 }
 
@@ -117,6 +111,17 @@ func (ap *GreedyQuadPlugin) Filter(
 	// These should *always* be fewer than or equal to 4, but we take the
 	// opportunity to assert this invariant later anyway.
 	occupants := ap.findCurrentOccupants(nodeInfo)
+		
+	var actinodelister listers.ActiNodeLister
+	
+	actinode, err := actinodelister.ActiNodes("acti-ns").Get("kind-worker")
+	if err != nil {
+		klog.V(2).Infof("ERROR NO ACTINODE", err)
+		return framework.NewStatus(framework.Error, err.Error())
+	} else {
+	klog.V(2).Infof("HERE IS THE ACTINODE", actinode)
+	return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("I SAID HERE IS THE ACTINODE", actinode))
+	}
 
 	// Decide on how to proceed based on the number of current occupants
 	switch len(occupants) {
@@ -350,20 +355,3 @@ func (_ *GreedyQuadPlugin) NormalizeScore(
 	}
 	return framework.NewStatus(framework.Success)
 }
-Footer
-© 2022 GitHub, Inc.
-Footer navigation
-
-    Terms
-    Privacy
-    Security
-    Status
-    Docs
-    Contact GitHub
-    Pricing
-    API
-    Training
-    Blog
-    About
-
-You have unread notifications
