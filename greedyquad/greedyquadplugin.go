@@ -11,6 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	
+	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/labels"
 	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
 )
 
@@ -113,14 +116,22 @@ func (ap *GreedyQuadPlugin) Filter(
 	occupants := ap.findCurrentOccupants(nodeInfo)
 		
 	var actinodelister listers.ActiNodeLister
+	sel := labels.NewSelector()
 	
-	actinode, err := actinodelister.ActiNodes("acti-ns").Get("kind-worker")
+	req, err := labels.NewRequirement("component", selection.Equals, []string{"actinodes"})
 	if err != nil {
-		klog.V(2).Infof("ERROR NO ACTINODE", err)
-		return framework.NewStatus(framework.Error, err.Error())
+		panic(err.Error())
+	}
+	sel = sel.Add(*req)
+	
+	actinode, errr := actinodelister.ActiNodes(pod.Namespace).List(sel)
+	if errr != nil {
+		panic(errr.Error())
+		//fmt.Print(errr.Error())
+		//return framework.NewStatus(framework.Error, errr.Error())
 	} else {
 	klog.V(2).Infof("HERE IS THE ACTINODE", actinode)
-	return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("I SAID HERE IS THE ACTINODE", actinode))
+	//return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("I SAID HERE IS THE ACTINODE", actinode))
 	}
 
 	// Decide on how to proceed based on the number of current occupants
