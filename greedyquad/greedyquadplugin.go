@@ -12,8 +12,11 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	
-	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/apimachinery/pkg/labels"
+	
+	//v1alpha1 "github.com/ckatsak/acticrds-go/apis/acti.cslab.ece.ntua.gr/v1alpha1"
+	//"k8s.io/apimachinery/pkg/selection"
+	//"k8s.io/apimachinery/pkg/labels"
+	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
 )
 
@@ -115,24 +118,41 @@ func (ap *GreedyQuadPlugin) Filter(
 	// opportunity to assert this invariant later anyway.
 	occupants := ap.findCurrentOccupants(nodeInfo)
 		
-	var actinodelister listers.ActiNodeLister
-	sel := labels.NewSelector()
+	//actinodelister : listers.ActiNodeLister{}
+	//sel := labels.NewSelector()
 	
-	req, err := labels.NewRequirement("component", selection.Equals, []string{"actinodes"})
-	if err != nil {
-		panic(err.Error())
-	}
-	sel = sel.Add(*req)
+	//req, err := labels.NewRequirement("component", selection.Equals, []string{"actinodes"})
+	//if err != nil {
+	//	panic(err.Error())
+	//}
+	//sel = sel.Add(*req)
 	
-	actinode, errr := actinodelister.ActiNodes(pod.Namespace).List(sel)
+	//klog.V(2).Infof("HERE IS THE SELECTOR '%s'", sel)
+	
+	//actinode := v1alpha1.ActiNode{
+	//	Spec: v1alpha1.ActiNodeSpec
+	//	        }
+	
+	//sel, err := metav1.LabelSelectorAsSelector(actinode.Spec)
+	//if err != nul {
+	//	panic(errr.Error())
+	//}
+	
+	name := "kind-worker"
+	klog.V(2).Infof("HERE IS THE NAME '%s'", name)
+	klog.V(2).Infof("HERE IS THE NAMESPACE '%s'", pod.Namespace)
+	
+	actilister := listers.NewActiNodeLister 
+	
+	actinodes, errr := actilister.ActiNodes(pod.Namespace).Get(name)
 	if errr != nil {
 		panic(errr.Error())
 		//fmt.Print(errr.Error())
 		//return framework.NewStatus(framework.Error, errr.Error())
-	} else {
-	klog.V(2).Infof("HERE IS THE ACTINODE", actinode)
-	//return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("I SAID HERE IS THE ACTINODE", actinode))
 	}
+	klog.V(2).Infof("HERE IS THE ACTINODES ", actinodes)
+	//return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("I SAID HERE IS THE ACTINODE", actinode))
+	
 
 	// Decide on how to proceed based on the number of current occupants
 	switch len(occupants) {
