@@ -186,10 +186,11 @@ func (ap *GreedyQuadPlugin) Filter(
 	//_ : ap.actinodeInformer.Lister()
 	
 	
-	actiactilister : = ap.actinodesLister
-	actinamespacer : = actiactilister.ActiNodes(pod.Namespace)
+	//actiactilister := ap.actinodesLister
+	//actinamespacer := actiactilister.ActiNodes(pod.Namespace)
 	
-	actinodes, err := actinamespace.Get(name)
+	//actinodes, err := actinamespacer.Get(name)
+	actinodes, err := ap.actinodesLister.ActiNodes(pod.Namespace).Get(name)
 	if err != nil {
 		fmt.Print(err.Error())
 	}

@@ -39,7 +39,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: {{ .Name }}
-  namespace: cpuman
+  namespace: acti-ns
   labels:
     category: cat{{ .Category }}
 spec:
