@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
-	informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
+	//listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
+	//informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -20,15 +20,15 @@ import (
 // slowdowns among all applications are known and hardcoded.
 type HardcodedSlowDowns struct {
 	greedyquadLabelKey string
-	actinodesLister  listers.ActiNodeLister
+	//actinodesLister  listers.ActiNodeLister
 }
 
 // New returns a new HardcodedSlowDowns with the given label key (the one that
 // is used by GreedyQuadPlugin to track its applications).
-func New(greedyquadLabelKey string, actinodeInformer informers.ActiNodeInformer ) *HardcodedSlowDowns {
+func New(greedyquadLabelKey string) *HardcodedSlowDowns {
 	return &HardcodedSlowDowns{
 		greedyquadLabelKey: greedyquadLabelKey,
-		actinodesLister:    actinodeInformer.Lister(),
+		//actinodesLister:    actinodeInformer.Lister(),
 	}
 }
 

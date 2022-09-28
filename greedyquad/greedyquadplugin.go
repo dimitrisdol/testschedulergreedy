@@ -24,7 +24,7 @@ import (
 	//"k8s.io/apimachinery/pkg/labels"
 	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
-	//informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
+	informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
 	informersacti "github.com/ckatsak/acticrds-go/client/informers/externalversions"
 	clientset "github.com/ckatsak/acticrds-go/client/clientset/versioned"
 )
@@ -50,6 +50,7 @@ type GreedyQuadPlugin struct {
 	model  InterferenceModel
 	actinodesLister  listers.ActiNodeLister
 	//actinodeInformer informers.ActiNodeInformer
+	acticlientset clientset.Interface
 }
 
 var (
@@ -70,7 +71,7 @@ func New(configuration runtime.Object, f framework.Handle) (framework.Plugin, er
 	
 	//cfg, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	
-	home, exists := os.LookupEnv("TEST")
+/*	home, exists := os.LookupEnv("TEST")
 	if !exists {
 	   home = "/etc/kubernetes"
 	}
@@ -89,10 +90,11 @@ func New(configuration runtime.Object, f framework.Handle) (framework.Plugin, er
 	
 	actiInformerFactory := informersacti.NewSharedInformerFactory(actiClient, time.Second*30)
 
+actiInformerFactory.Acti().V1alpha1().ActiNodes()
+*/
 	return &GreedyQuadPlugin{
 		handle: f,
-		model:  hardcoded.New(greedyquadLabelKey, actiInformerFactory.Acti().V1alpha1().ActiNodes()),
-		//actinodesLister:  actinodeInformer.Lister(),
+		model:  hardcoded.New(greedyquadLabelKey,),
 	}, nil
 }
 
@@ -100,6 +102,18 @@ func New(configuration runtime.Object, f framework.Handle) (framework.Plugin, er
 func (_ *GreedyQuadPlugin) Name() string {
 	return Name
 }
+
+func NewController(
+	acticlientset clientset.Interface,
+	actiInformer informers.ActiNodeInformer) *GreedyQuadPlugin {
+	
+	greedyquadplugin := &GreedyQuadPlugin{
+		acticlientset: acticlientset,
+		actinodesLister: actiInformer.Lister(),
+		}
+		
+	return greedyquadplugin
+	}
 
 // findCurrentOccupants returns all Pods that are being tracked by GreedyQuadPlugin
 // and are already scheduled on the Node represented by the given NodeInfo.
@@ -179,18 +193,38 @@ func (ap *GreedyQuadPlugin) Filter(
 	//	panic(errr.Error())
 	//}
 	
-	name := "kind-worker"
+	home, exists := os.LookupEnv("TEST")
+	if !exists {
+	   home = "/etc/kubernetes"
+	}
+	
+	configPath := filepath.Join(home, "scheduler.conf")
+	
+	cfg, err := clientcmd.BuildConfigFromFlags("", configPath)
+	if err != nil {
+		klog.Fatalf("Error building config: %s", err.Error())
+	}
+	
+	actiClient, err := clientset.NewForConfig(cfg)
+	if err != nil {
+		klog.Fatalf("Error building example clientset: %s", err.Error())
+	}
+	
+	actiInformerFactory := informersacti.NewSharedInformerFactory(actiClient, time.Second*30)
+
+	greedyquadplugin := NewController(actiClient, actiInformerFactory.Acti().V1alpha1().ActiNodes())
+	
+	name := "termi7"
 	klog.V(2).Infof("HERE IS THE NAME '%s'", name)
 	klog.V(2).Infof("HERE IS THE NAMESPACE '%s'", pod.Namespace)
 	
 	//_ : ap.actinodeInformer.Lister()
 	
+	actiactilister := greedyquadplugin.actinodesLister
+	actinamespacer := actiactilister.ActiNodes(pod.Namespace)
 	
-	//actiactilister := ap.actinodesLister
-	//actinamespacer := actiactilister.ActiNodes(pod.Namespace)
-	
-	//actinodes, err := actinamespacer.Get(name)
-	actinodes, err := ap.actinodesLister.ActiNodes(pod.Namespace).Get(name)
+	actinodes, err := actinamespacer.Get(name)
+	//actinodes, err := ap.actinodesLister.ActiNodes(pod.Namespace).Get(name)
 	if err != nil {
 		fmt.Print(err.Error())
 	}
