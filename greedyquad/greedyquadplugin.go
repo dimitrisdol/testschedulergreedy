@@ -5,7 +5,7 @@ package greedyquad
 import (
 	"context"
 	"fmt"
-	"time"
+	//"time"
 	//"flag"
 	"os"
 	"path/filepath"
@@ -15,8 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/apiserver/pkg/server"
 	
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	//"k8s.io/client-go/rest"
 	
 	//v1alpha1 "github.com/ckatsak/acticrds-go/apis/acti.cslab.ece.ntua.gr/v1alpha1"
@@ -52,6 +55,8 @@ type GreedyQuadPlugin struct {
 	actinodesLister  listers.ActiNodeLister
 	//actinodeInformer informers.ActiNodeInformer
 	acticlientset clientset.Interface
+	actinodesListerSynced cache.InformerSynced
+	actiQueue workqueue.RateLimitingInterface
 }
 
 var (
@@ -81,12 +86,35 @@ func NewController(
 	actiInformer informers.ActiNodeInformer,) *GreedyQuadPlugin {
 	
 	greedyquadplugin := &GreedyQuadPlugin{
-		acticlientset: acticlientset,
-		actinodesLister: actiInformer.Lister(),
+		//acticlientset: acticlientset,
+		//actinodesLister: actiInformer.Lister(),
+		actiQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller scheduling-queue"),
 		}
+		
+	greedyquadplugin.actinodesLister = actiInformer.Lister()
+	greedyquadplugin.actinodesListerSynced = actiInformer.Informer().HasSynced
+	greedyquadplugin.acticlientset = acticlientset
 		
 	return greedyquadplugin
 	}
+	
+func (ap *GreedyQuadPlugin) Run(workers int, stopCh <-chan struct{}) {
+	defer ap.actiQueue.ShutDown()
+	
+	klog.Info("Starting scheduling controller")
+	defer klog.Info("Shutting scheduling controller")
+
+	if !cache.WaitForCacheSync(stopCh, ap.actiListerSynched, ap.actiListerSynched) {
+		klog.Error("Cannot sync caches")
+		return
+	}
+	klog.Info("Scheduling controller sync finished")
+	for i := 0; i < workers; i++ {
+		go wait.Until(ap.sync, 0, stopCh)
+	}
+
+	<-stopCh
+}
 
 // findCurrentOccupants returns all Pods that are being tracked by GreedyQuadPlugin
 // and are already scheduled on the Node represented by the given NodeInfo.
@@ -183,13 +211,46 @@ func (ap *GreedyQuadPlugin) Filter(
 		klog.Fatalf("Error building example clientset: %s", err.Error())
 	}
 	
-	actiInformerFactory := informersacti.NewSharedInformerFactory(actiClient, time.Second*30)
+	actiInformerFactory := informersacti.NewSharedInformerFactory(actiClient, 0)
+	stopCh := server.SetupSignalHandler()
 
 	greedyquadplugin := NewController(actiClient, actiInformerFactory.Acti().V1alpha1().ActiNodes())
 	
-	name := "termi7"
-	klog.V(2).Infof("HERE IS THE NAME '%s'", name)
-	klog.V(2).Infof("HERE IS THE NAMESPACE '%s'", pod.Namespace)
+	actiInformerFactory.Start(stopCh)
+	run := func(ctx context.Context) {
+		greedyquadplugin.Run(s.Workers, ctx.Done())
+		}
+	run(ctx)
+	//name := "termi7"
+	//klog.V(2).Infof("HERE IS THE NAME '%s'", name)
+	//klog.V(2).Infof("HERE IS THE NAMESPACE '%s'", pod.Namespace)
+	
+	keyObj, quit := greedyquadplugin.actiQueue.Get()
+	if quit {
+		return
+	}
+	defer greedyquadplugin.actiQueue.Done(keyObj)
+	
+	key := keyObj.(string)
+	namespace, actiName, err := cache.SplitMetaNamespaceKey(key)
+	klog.V(4).Infof("Started acti processing %q", actiName)
+	
+	//get acti to process
+	acti, err := greedyquadplugin.actiLister.ActiNodes(namespace).Get(actiName)
+	ctx := context.TODO()
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			acti, err = greedyquadplugin.acticlientset.ActiV1alpha1().ActiNodes(pod.Namespace).Get(ctx, actiName, metav1.GetOptions{})
+			if err != nil && apierrs.IsNotFound(err) {
+				//acti was deleted in the meantime, ignore.
+				klog.V(3).Infof("Acti %q deleted", actiName)
+				return
+			}
+		}
+		klog.Errorf("Error getting ActiNode %q: %v", actiName, err)
+		greedyquadplugin.actiQueue.AddRateLimited(keyObj)
+		return
+	}
 	
 	//_ : ap.actinodeInformer.Lister()
 	
@@ -213,12 +274,15 @@ func (ap *GreedyQuadPlugin) Filter(
 	actinodes, err := actinamespacer.Get(name)
 	*/
 	
-	actinodes, err := greedyquadplugin.acticlientset.ActiV1alpha1().ActiNodes(pod.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	// !!!!!//
+	
+	/*actinodes, err := greedyquadplugin.acticlientset.ActiV1alpha1().ActiNodes(pod.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	//actinodes, err := ap.actinodesLister.ActiNodes(pod.Namespace).Get(name)
 	if err != nil {
 		fmt.Print(err.Error())
 	}
-	klog.V(2).Infof("HERE IS THE ACTINODE ", actinodes)
+	klog.V(2).Infof("HERE IS THE ACTINODE ", actinodes) */
+	
 
 	// Decide on how to proceed based on the number of current occupants
 	switch len(occupants) {

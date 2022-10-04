@@ -6,6 +6,7 @@ require (
 	github.com/ckatsak/acticrds-go v0.0.0-20220717100146-fbb2b6ff534c
 	k8s.io/api v0.21.5
 	k8s.io/apimachinery v0.21.5
+	k8s.io/apiserver v0.20.4 // indirect
 	k8s.io/client-go v0.21.5 // indirect
 	k8s.io/klog/v2 v2.8.0
 	k8s.io/kube-scheduler v0.20.4 // indirect
