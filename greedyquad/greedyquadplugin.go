@@ -16,6 +16,8 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/apiserver/pkg/server"
+	"k8s.io/apimachinery/pkg/util/wait"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/cache"
@@ -98,13 +100,51 @@ func NewController(
 	return greedyquadplugin
 	}
 	
+func startActi() *GreedyQuadPlugin {
+
+	ctx := context.Background()
+	
+	home, exists := os.LookupEnv("TEST")
+	if !exists {
+	   home = "/etc/kubernetes"
+	}
+	
+	configPath := filepath.Join(home, "scheduler.conf")
+	
+	cfg, err := clientcmd.BuildConfigFromFlags("", configPath)
+	if err != nil {
+		klog.Fatalf("Error building config: %s", err.Error())
+	}
+	
+	actiClient, err := clientset.NewForConfig(cfg)
+	if err != nil {
+		klog.Fatalf("Error building example clientset: %s", err.Error())
+	}
+	
+	actiInformerFactory := informersacti.NewSharedInformerFactory(actiClient, 0)
+	stopCh := server.SetupSignalHandler()
+
+	greedyquadplugin := NewController(actiClient, actiInformerFactory.Acti().V1alpha1().ActiNodes())
+	
+	actiInformerFactory.Start(stopCh)
+	run := func(ctx context.Context) {
+		greedyquadplugin.Run(1, ctx.Done())
+		}
+	run(ctx)
+	
+	//<-stopCh
+	
+	return greedyquadplugin
+
+}
+	
 func (ap *GreedyQuadPlugin) Run(workers int, stopCh <-chan struct{}) {
 	defer ap.actiQueue.ShutDown()
 	
 	klog.Info("Starting scheduling controller")
 	defer klog.Info("Shutting scheduling controller")
 
-	if !cache.WaitForCacheSync(stopCh, ap.actiListerSynched, ap.actiListerSynched) {
+	if !cache.WaitForCacheSync(stopCh, ap.actinodesListerSynced, ap.actinodesListerSynced) {
 		klog.Error("Cannot sync caches")
 		return
 	}
@@ -113,7 +153,40 @@ func (ap *GreedyQuadPlugin) Run(workers int, stopCh <-chan struct{}) {
 		go wait.Until(ap.sync, 0, stopCh)
 	}
 
-	<-stopCh
+	//<-stopCh
+}
+
+func () sync() {
+
+	gp := startActi
+
+	keyObj, quit := gp.actiQueue.Get()
+	if quit {
+		return
+	}
+	defer gp.actiQueue.Done(keyObj)
+	
+	key := keyObj.(string)
+	namespace, actiName, err := cache.SplitMetaNamespaceKey(key)
+	klog.V(4).Infof("Started acti processing %q", actiName)
+	
+	//get acti to process
+	acti, err := gp.actinodesLister.ActiNodes(namespace).Get(actiName)
+	klog.V(2).Infof("HERE IS THE ACTINODE ", acti)
+	ctx := context.TODO()
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			acti, err = gp.acticlientset.ActiV1alpha1().ActiNodes(namespace).Get(ctx, actiName, metav1.GetOptions{})
+			if err != nil && apierrs.IsNotFound(err) {
+				//acti was deleted in the meantime, ignore.
+				klog.V(3).Infof("Acti %q deleted", actiName)
+				return
+			}
+		}
+		klog.Errorf("Error getting ActiNode %q: %v", actiName, err)
+		gp.actiQueue.AddRateLimited(keyObj)
+		return
+	}
 }
 
 // findCurrentOccupants returns all Pods that are being tracked by GreedyQuadPlugin
@@ -194,7 +267,7 @@ func (ap *GreedyQuadPlugin) Filter(
 	//	panic(errr.Error())
 	//}
 	
-	home, exists := os.LookupEnv("TEST")
+	/*home, exists := os.LookupEnv("TEST")
 	if !exists {
 	   home = "/etc/kubernetes"
 	}
@@ -218,39 +291,16 @@ func (ap *GreedyQuadPlugin) Filter(
 	
 	actiInformerFactory.Start(stopCh)
 	run := func(ctx context.Context) {
-		greedyquadplugin.Run(s.Workers, ctx.Done())
+		greedyquadplugin.Run(1, ctx.Done())
 		}
 	run(ctx)
 	//name := "termi7"
 	//klog.V(2).Infof("HERE IS THE NAME '%s'", name)
 	//klog.V(2).Infof("HERE IS THE NAMESPACE '%s'", pod.Namespace)
 	
-	keyObj, quit := greedyquadplugin.actiQueue.Get()
-	if quit {
-		return
-	}
-	defer greedyquadplugin.actiQueue.Done(keyObj)
+	<-stopCh */
 	
-	key := keyObj.(string)
-	namespace, actiName, err := cache.SplitMetaNamespaceKey(key)
-	klog.V(4).Infof("Started acti processing %q", actiName)
-	
-	//get acti to process
-	acti, err := greedyquadplugin.actiLister.ActiNodes(namespace).Get(actiName)
-	ctx := context.TODO()
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			acti, err = greedyquadplugin.acticlientset.ActiV1alpha1().ActiNodes(pod.Namespace).Get(ctx, actiName, metav1.GetOptions{})
-			if err != nil && apierrs.IsNotFound(err) {
-				//acti was deleted in the meantime, ignore.
-				klog.V(3).Infof("Acti %q deleted", actiName)
-				return
-			}
-		}
-		klog.Errorf("Error getting ActiNode %q: %v", actiName, err)
-		greedyquadplugin.actiQueue.AddRateLimited(keyObj)
-		return
-	}
+	ap.sync()
 	
 	//_ : ap.actinodeInformer.Lister()
 	
