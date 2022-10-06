@@ -150,7 +150,7 @@ func (ap *GreedyQuadPlugin) Run(workers int, stopCh <-chan struct{}) {
 	}
 	klog.Info("Scheduling controller sync finished")
 	for i := 0; i < workers; i++ {
-		go wait.Until(ap.sync, 0, stopCh)
+		go wait.Until(gp.sync, 0, stopCh)
 	}
 
 	//<-stopCh
