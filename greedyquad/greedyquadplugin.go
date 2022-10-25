@@ -5,34 +5,39 @@ package greedyquad
 import (
 	"context"
 	"fmt"
-	//"time"
+	"time"
 	//"flag"
-	"os"
-	"path/filepath"
+	//"os"
+	//"path/filepath"
 
 	"github.com/dimitrisdol/testschedulergreedy/greedyquad/hardcoded"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"k8s.io/apiserver/pkg/server"
+	//"k8s.io/apiserver/pkg/server"
 	"k8s.io/apimachinery/pkg/util/wait"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	//apierrs "k8s.io/apimachinery/pkg/api/errors"
 	
-	"k8s.io/client-go/tools/clientcmd"
+	//"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	//"k8s.io/client-go/tools/record"
+	//"k8s.io/client-go/kubernetes/scheme"
 	//"k8s.io/client-go/rest"
 	
 	//v1alpha1 "github.com/ckatsak/acticrds-go/apis/acti.cslab.ece.ntua.gr/v1alpha1"
 	//"k8s.io/apimachinery/pkg/selection"
 	//"k8s.io/apimachinery/pkg/labels"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//"k8s.io/apimachinery/pkg/api/errors"
 	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
 	informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
-	informersacti "github.com/ckatsak/acticrds-go/client/informers/externalversions"
+	//informersacti "github.com/ckatsak/acticrds-go/client/informers/externalversions"
 	clientset "github.com/ckatsak/acticrds-go/client/clientset/versioned"
+	//actischeme "github.com/ckatsak/acticrds-go/client/clientset/versioned/scheme"
 	//acticlient "github.com/ckatsak/acticrds-go/client/clientset/versioned/typed/acti.cslab.ece.ntua.gr/v1alpha1"
+	//utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 const (
@@ -42,6 +47,13 @@ const (
 	// sla is the maximum slowdown that is allowed for an application when
 	// it is being scheduled along another one.
 	sla = 60
+	
+	// SuccessSynced is used as part of the Event 'reason' when a Foo is synced
+	//SuccessSynced = "Synced"
+	
+	// MessageResourceSynced is the message used for an Event fired when a Foo
+	// is synced successfully
+	//MessageResourceSynced = "Foo synced successfully"
 
 	// greedyquadLabelKey is the key of the Kubernetes Label which every
 	// application that needs to be tracked by GreedyQuadPlugin should have.
@@ -54,11 +66,12 @@ const (
 type GreedyQuadPlugin struct {
 	handle framework.Handle
 	model  InterferenceModel
-	actinodesLister  listers.ActiNodeLister
+	ActinodesLister  listers.ActiNodeLister
 	//actinodeInformer informers.ActiNodeInformer
-	acticlientset clientset.Interface
-	actinodesListerSynced cache.InformerSynced
-	actiQueue workqueue.RateLimitingInterface
+	Acticlientset clientset.Interface
+	ActinodesListerSynced cache.InformerSynced
+	ActiQueue workqueue.RateLimitingInterface
+	//recorder record.EventRecorder
 }
 
 var (
@@ -84,25 +97,37 @@ func (_ *GreedyQuadPlugin) Name() string {
 }
 
 func NewController(
-	acticlientset clientset.Interface,
-	actiInformer informers.ActiNodeInformer,) *GreedyQuadPlugin {
+	Acticlientset clientset.Interface,
+	ActiInformer informers.ActiNodeInformer,) *GreedyQuadPlugin {
 	
-	greedyquadplugin := &GreedyQuadPlugin{
-		//acticlientset: acticlientset,
-		//actinodesLister: actiInformer.Lister(),
-		actiQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller scheduling-queue"),
+	//utilruntime.Must(actischeme.AddToScheme(scheme.Scheme))
+	//klog.V(4).Info("Creating event broadcaster")
+	//eventBroadcaster := record.NewBroadcaster()
+	//eventBroadcaster.StartStructuredLogging(0)
+	//eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: acticlientset.ActiV1alpha1()})
+	//recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: Name})
+	
+	Greedyquadplugin := &GreedyQuadPlugin{
+		Acticlientset: Acticlientset,
+		ActinodesLister: ActiInformer.Lister(),
+		ActiQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller acti scheduling-queue"),
+		//recorder:          recorder,
+		ActinodesListerSynced: ActiInformer.Informer().HasSynced,
 		}
 		
-	greedyquadplugin.actinodesLister = actiInformer.Lister()
+	klog.Info("Setting up event handlers")
+		
+	/*greedyquadplugin.actinodesLister = actiInformer.Lister()
 	greedyquadplugin.actinodesListerSynced = actiInformer.Informer().HasSynced
 	greedyquadplugin.acticlientset = acticlientset
-		
-	return greedyquadplugin
-	}
+	*/
 	
-func startActi() *GreedyQuadPlugin {
+	return Greedyquadplugin
+	}
+/*	
+func startActi() {
 
-	ctx := context.Background()
+	//ctx := context.Background()
 	
 	home, exists := os.LookupEnv("TEST")
 	if !exists {
@@ -127,56 +152,173 @@ func startActi() *GreedyQuadPlugin {
 	greedyquadplugin := NewController(actiClient, actiInformerFactory.Acti().V1alpha1().ActiNodes())
 	
 	actiInformerFactory.Start(stopCh)
-	run := func(ctx context.Context) {
-		greedyquadplugin.Run(1, ctx.Done())
-		}
-	run(ctx)
 	
-	//<-stopCh
-	
-	return greedyquadplugin
+	if err = greedyquadplugin.Run(1); err != nil {
+		klog.Fatalf("Error running controller: %s", err.Error())
+	}
 
 }
-	
-func (ap *GreedyQuadPlugin) Run(workers int, stopCh <-chan struct{}) {
-	defer ap.actiQueue.ShutDown()
+	*/
+func (ap *GreedyQuadPlugin) Run(workers int, stopCh <-chan struct{}) error {
+	//defer utilruntime.HandleCrash()
+	defer ap.ActiQueue.ShutDown()
 	
 	klog.Info("Starting scheduling controller")
-	defer klog.Info("Shutting scheduling controller")
-
-	if !cache.WaitForCacheSync(stopCh, ap.actinodesListerSynced, ap.actinodesListerSynced) {
-		klog.Error("Cannot sync caches")
-		return
+	
+	klog.Info("Waiting for informer caches to sync")
+	if ok := cache.WaitForCacheSync(stopCh, ap.ActinodesListerSynced); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
 	}
-	klog.Info("Scheduling controller sync finished")
+
+	klog.Info("Starting workers")
+	// Launch two workers to process Acti resources
 	for i := 0; i < workers; i++ {
-		go wait.Until(gp.sync, 0, stopCh)
+		go wait.Until(ap.runWorker, 4 * time.Second, stopCh)
 	}
 
-	//<-stopCh
+	klog.Info("Started workers")
+	<-stopCh
+	klog.Info("Shutting down workers")
+
+	return nil
+} 
+
+
+// runWorker is a long-running function that will continually call the
+// processNextWorkItem function in order to read and process a message on the
+// workqueue.
+func (ap *GreedyQuadPlugin) runWorker() {
+	for ap.processNextWorkItem() {
+	}
 }
 
-func () sync() {
+func (ap *GreedyQuadPlugin) processNextWorkItem() bool {
+	obj, shutdown := ap.ActiQueue.Get()
 
-	gp := startActi
+	if shutdown {
+		return false
+	}
 
-	keyObj, quit := gp.actiQueue.Get()
+	// We wrap this block in a func so we can defer c.workqueue.Done.
+	err := func(obj interface{}) error {
+		// We call Done here so the workqueue knows we have finished
+		// processing this item. We also must remember to call Forget if we
+		// do not want this work item being re-queued. For example, we do
+		// not call Forget if a transient error occurs, instead the item is
+		// put back on the workqueue and attempted again after a back-off
+		// period.
+		defer ap.ActiQueue.Done(obj)
+		var key string
+		var ok bool
+		// We expect strings to come off the workqueue. These are of the
+		// form namespace/name. We do this as the delayed nature of the
+		// workqueue means the items in the informer cache may actually be
+		// more up to date that when the item was initially put onto the
+		// workqueue.
+		if key, ok = obj.(string); !ok {
+			// As the item in the workqueue is actually invalid, we call
+			// Forget here else we'd go into a loop of attempting to
+			// process a work item that is invalid.
+			ap.ActiQueue.Forget(obj)
+			klog.Errorf("expected string in workqueue but got %#v", obj)
+			return nil
+		}
+		// Run the syncHandler, passing it the namespace/name string of the
+		// Foo resource to be synced.
+		/*if err := ap.syncHandler(key); err != nil {
+			// Put the item back on the workqueue to handle any transient errors.
+			ap.actiQueue.AddRateLimited(key)
+			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
+		} */
+		// Finally, if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		ap.ActiQueue.Forget(obj)
+		klog.Infof("Successfully synced '%s'", key)
+		return nil
+	}(obj)
+
+	if err != nil {
+		klog.Errorf("error", err)
+		return true
+	}
+
+	return true
+}
+
+/*
+// syncHandler compares the actual state with the desired, and attempts to
+// converge the two. It then updates the Status block of the Foo resource
+// with the current status of the resource.
+func (ap *GreedyQuadPlugin) syncHandler(key string) error {
+	// Convert the namespace/name string into a distinct namespace and name
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		klog.Errorf("invalid resource key: %s", key)
+		return nil
+	}
+
+	// Get the Foo resource with this namespace/name
+	acti, err := ap.actinodesLister.ActiNodes(namespace).Get(name)
+	if err != nil {
+		// The Foo resource may no longer exist, in which case we stop
+		// processing.
+		if errors.IsNotFound(err) {
+			klog.Errorf("foo '%s' in work queue no longer exists", key)
+			return nil
+		}
+
+		return err
+	}
+	
+	klog.Infof("Here is the actinode", acti)
+	//ap.recorder.Event(acti, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	return nil
+}
+*/
+
+// enqueueActiNode takes an ActiNode resource and converts it into a namespace/name
+// string which is then put onto the work queue. This method should *not* be
+// passed resources of any type other than ActiNode.
+func (ap *GreedyQuadPlugin) EnqueueActiNode(obj interface{}) {
+	
+	key := fmt.Sprint(obj)
+	klog.Info("here is the key to be added", key)
+	/*var key string
+	
+	if key, ok = string(obj); !ok {
+			klog.Errorf("expected string in workqueue but got %#v", obj)
+			return
+		} */
+	//var err error
+	//if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
+	//	klog.Errorf("error", err)
+	//	return
+	//}
+	ap.ActiQueue.Add(key)
+}
+
+
+/*func (ap *GreedyQuadPlugin) sync() {
+
+	//gp := startActi
+
+	keyObj, quit := ap.actiQueue.Get()
 	if quit {
 		return
 	}
-	defer gp.actiQueue.Done(keyObj)
+	defer ap.actiQueue.Done(keyObj)
 	
 	key := keyObj.(string)
 	namespace, actiName, err := cache.SplitMetaNamespaceKey(key)
 	klog.V(4).Infof("Started acti processing %q", actiName)
 	
 	//get acti to process
-	acti, err := gp.actinodesLister.ActiNodes(namespace).Get(actiName)
+	acti, err := ap.actinodesLister.ActiNodes(namespace).Get(actiName)
 	klog.V(2).Infof("HERE IS THE ACTINODE ", acti)
 	ctx := context.TODO()
 	if err != nil {
 		if apierrs.IsNotFound(err) {
-			acti, err = gp.acticlientset.ActiV1alpha1().ActiNodes(namespace).Get(ctx, actiName, metav1.GetOptions{})
+			acti, err = ap.acticlientset.ActiV1alpha1().ActiNodes(namespace).Get(ctx, actiName, metav1.GetOptions{})
 			if err != nil && apierrs.IsNotFound(err) {
 				//acti was deleted in the meantime, ignore.
 				klog.V(3).Infof("Acti %q deleted", actiName)
@@ -184,10 +326,10 @@ func () sync() {
 			}
 		}
 		klog.Errorf("Error getting ActiNode %q: %v", actiName, err)
-		gp.actiQueue.AddRateLimited(keyObj)
+		ap.actiQueue.AddRateLimited(keyObj)
 		return
 	}
-}
+} */
 
 // findCurrentOccupants returns all Pods that are being tracked by GreedyQuadPlugin
 // and are already scheduled on the Node represented by the given NodeInfo.
@@ -300,7 +442,18 @@ func (ap *GreedyQuadPlugin) Filter(
 	
 	<-stopCh */
 	
-	ap.sync()
+	/*name := "termi7"
+	klog.Info("HERE IS THE NAME '%s'", name)
+	klog.Info("HERE IS THE NAMESPACE '%s'", pod.Namespace)
+	
+	actiactilister := ap.actinodesLister
+	actinamespacer := actiactilister.ActiNodes(pod.Namespace)
+	
+	actinodes, err := actinamespacer.Get(name)
+	if err != nil {
+		klog.Info("ignoring orphaned object of acti")
+		}
+	ap.enqueueActiNode(actinodes) */
 	
 	//_ : ap.actinodeInformer.Lister()
 	
