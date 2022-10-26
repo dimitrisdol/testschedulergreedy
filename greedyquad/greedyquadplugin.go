@@ -7,15 +7,15 @@ import (
 	"fmt"
 	"path/filepath"
 	"time"
-	
+
 	activ1alpha1 "github.com/ckatsak/acticrds-go/apis/acti.cslab.ece.ntua.gr/v1alpha1"
 	clientset "github.com/ckatsak/acticrds-go/client/clientset/versioned"
 	informersacti "github.com/ckatsak/acticrds-go/client/informers/externalversions"
 	informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
 	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
 	"github.com/dimitrisdol/testschedulergreedy/greedyquad/hardcoded"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
@@ -277,12 +277,12 @@ func (ap *GreedyQuadPlugin) Filter(
 	case 0:
 		klog.V(2).Infof("approving Node %q for pod '%s/%s'", nodeName, pod.Namespace, pod.Name)
 		/*assg := make(map[string][]uint32)
-		corelist := []uint32{0,1}
-		assg["podatest"] = corelist
-		err = ap.updateActiNodeSpec(actinodes, assg)
-		if err != nil {
-		klog.Info("error with updating the actinode", err)
-	} */
+			corelist := []uint32{0,1}
+			assg["podatest"] = corelist
+			err = ap.updateActiNodeSpec(actinodes, assg)
+			if err != nil {
+			klog.Info("error with updating the actinode", err)
+		} */
 		return framework.NewStatus(framework.Success)
 	// If more than 2 occupants are found to be already scheduled on the
 	// Node at hand, we must have fucked up earlier; report the error.
