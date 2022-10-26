@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	//listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
-	//informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,7 +26,6 @@ type HardcodedSlowDowns struct {
 func New(greedyquadLabelKey string) *HardcodedSlowDowns {
 	return &HardcodedSlowDowns{
 		greedyquadLabelKey: greedyquadLabelKey,
-		//actinodesLister:    actinodeInformer.Lister(),
 	}
 }
 

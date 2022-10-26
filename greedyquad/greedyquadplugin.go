@@ -5,29 +5,21 @@ package greedyquad
 import (
 	"context"
 	"fmt"
-	"time"
-	//"flag"
-	"os"
 	"path/filepath"
-
+	"time"
+	
+	activ1alpha1 "github.com/ckatsak/acticrds-go/apis/acti.cslab.ece.ntua.gr/v1alpha1"
+	clientset "github.com/ckatsak/acticrds-go/client/clientset/versioned"
+	informersacti "github.com/ckatsak/acticrds-go/client/informers/externalversions"
+	informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
+	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
 	"github.com/dimitrisdol/testschedulergreedy/greedyquad/hardcoded"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	
-	"k8s.io/client-go/tools/clientcmd"
-	//"k8s.io/client-go/rest"
-	
-	//v1alpha1 "github.com/ckatsak/acticrds-go/apis/acti.cslab.ece.ntua.gr/v1alpha1"
-	//"k8s.io/apimachinery/pkg/selection"
-	//"k8s.io/apimachinery/pkg/labels"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	listers "github.com/ckatsak/acticrds-go/client/listers/acti.cslab.ece.ntua.gr/v1alpha1"
-	informers "github.com/ckatsak/acticrds-go/client/informers/externalversions/acti.cslab.ece.ntua.gr/v1alpha1"
-	informersacti "github.com/ckatsak/acticrds-go/client/informers/externalversions"
-	clientset "github.com/ckatsak/acticrds-go/client/clientset/versioned"
-	//acticlient "github.com/ckatsak/acticrds-go/client/clientset/versioned/typed/acti.cslab.ece.ntua.gr/v1alpha1"
 )
 
 const (
@@ -47,15 +39,14 @@ const (
 // account information about the slowdown of colocated applications when they
 // are wrapped into Pods and scheduled on the Kubernetes cluster.
 type GreedyQuadPlugin struct {
-	handle framework.Handle
-	model  InterferenceModel
-	actinodesLister  listers.ActiNodeLister
+	handle          framework.Handle
+	model           InterferenceModel
+	actinodesLister listers.ActiNodeLister
 	//actinodeInformer informers.ActiNodeInformer
 	acticlientset clientset.Interface
 }
 
 var (
-
 	_ framework.Plugin          = &GreedyQuadPlugin{}
 	_ framework.FilterPlugin    = &GreedyQuadPlugin{}
 	_ framework.ScorePlugin     = &GreedyQuadPlugin{}
@@ -67,7 +58,7 @@ func New(configuration runtime.Object, f framework.Handle) (framework.Plugin, er
 
 	return &GreedyQuadPlugin{
 		handle: f,
-		model:  hardcoded.New(greedyquadLabelKey,),
+		model:  hardcoded.New(greedyquadLabelKey),
 	}, nil
 }
 
@@ -78,15 +69,40 @@ func (_ *GreedyQuadPlugin) Name() string {
 
 func NewController(
 	acticlientset clientset.Interface,
-	actiInformer informers.ActiNodeInformer,) *GreedyQuadPlugin {
-	
+	actiInformer informers.ActiNodeInformer) *GreedyQuadPlugin {
+
 	greedyquadplugin := &GreedyQuadPlugin{
-		acticlientset: acticlientset,
+		acticlientset:   acticlientset,
 		actinodesLister: actiInformer.Lister(),
-		}
-		
-	return greedyquadplugin
 	}
+
+	return greedyquadplugin
+}
+
+func (ap *GreedyQuadPlugin) updateActiNodeSpec(actinode *activ1alpha1.ActiNode, assignment map[string][]uint32) error {
+	// NEVER modify objects from the store. It's a read-only, local cache.
+	// You can use DeepCopy() to make a deep copy of original object and modify this copy
+	// Or create a copy manually for better performance
+	actinodeCopy := actinode.DeepCopy()
+	actinodeCopy.Spec.Assignments = assignment
+	// Update will allow changes to the Spec of the resource. (? I think)
+	_, err := ap.acticlientset.ActiV1alpha1().ActiNodes(actinode.Namespace).Update(context.TODO(), actinodeCopy, metav1.UpdateOptions{})
+	return err
+}
+
+func (ap *GreedyQuadPlugin) updateActiNodeStatus(actinode *activ1alpha1.ActiNode, pinning map[string][]uint32) error {
+	// NEVER modify objects from the store. It's a read-only, local cache.
+	// You can use DeepCopy() to make a deep copy of original object and modify this copy
+	// Or create a copy manually for better performance
+	actinodeCopy := actinode.DeepCopy()
+	actinodeCopy.Status.Pinnings = pinning
+	// If the CustomResourceSubresources feature gate is not enabled,
+	// we must use Update instead of UpdateStatus to update the Status block of the Foo resource.
+	// UpdateStatus will not allow changes to the Spec of the resource,
+	// which is ideal for ensuring nothing other than resource status has been updated.
+	_, err := ap.acticlientset.ActiV1alpha1().ActiNodes(actinode.Namespace).UpdateStatus(context.TODO(), actinodeCopy, metav1.UpdateOptions{})
+	return err
+}
 
 // findCurrentOccupants returns all Pods that are being tracked by GreedyQuadPlugin
 // and are already scheduled on the Node represented by the given NodeInfo.
@@ -145,78 +161,35 @@ func (ap *GreedyQuadPlugin) Filter(
 	// These should *always* be fewer than or equal to 4, but we take the
 	// opportunity to assert this invariant later anyway.
 	occupants := ap.findCurrentOccupants(nodeInfo)
-		
-	//actinodelister : listers.ActiNodeLister{}
-	//sel := labels.NewSelector()
-	
-	//req, err := labels.NewRequirement("component", selection.Equals, []string{"actinodes"})
-	//if err != nil {
-	//	panic(err.Error())
-	//}
-	//sel = sel.Add(*req)
-	
-	//klog.V(2).Infof("HERE IS THE SELECTOR '%s'", sel)
-	
-	//actinode := v1alpha1.ActiNode{
-	//	Spec: v1alpha1.ActiNodeSpec
-	//	        }
-	
-	//sel, err := metav1.LabelSelectorAsSelector(actinode.Spec)
-	//if err != nul {
-	//	panic(errr.Error())
-	//}
-	
-	home, exists := os.LookupEnv("TEST")
-	if !exists {
-	   home = "/etc/kubernetes"
-	}
-	
+
+	home := "/etc/kubernetes"
+
 	configPath := filepath.Join(home, "scheduler.conf")
-	
+
 	cfg, err := clientcmd.BuildConfigFromFlags("", configPath)
 	if err != nil {
 		klog.Fatalf("Error building config: %s", err.Error())
 	}
-	
+
 	actiClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building example clientset: %s", err.Error())
 	}
-	
+
 	actiInformerFactory := informersacti.NewSharedInformerFactory(actiClient, time.Second*30)
 
 	greedyquadplugin := NewController(actiClient, actiInformerFactory.Acti().V1alpha1().ActiNodes())
-	
+
 	name := "termi7"
 	klog.V(2).Infof("HERE IS THE NAME '%s'", name)
 	klog.V(2).Infof("HERE IS THE NAMESPACE '%s'", pod.Namespace)
-	
-	//_ : ap.actinodeInformer.Lister()
-	
-	/*sel := labels.NewSelector()
-	
-	req, err := labels.NewRequirement("namespace", selection.Equals, []string{"acti-ns"})
-	if err != nil {
-		panic(err.Error())
-	}
-	sel = sel.Add(*req)
-	
-	*/
-	
-	/*sel := labels.SelectorFromSet(map[string]string{"app.kubernetes.o/component": "actinodes"})
-	
-	klog.V(2).Infof("HERE IS THE SELECTOR '%s'", sel)
-	*/
-	/*actiactilister := greedyquadplugin.actinodesLister
+
+	actiactilister := greedyquadplugin.actinodesLister
 	actinamespacer := actiactilister.ActiNodes(pod.Namespace)
-	
+
 	actinodes, err := actinamespacer.Get(name)
-	*/
-	
-	actinodes, err := greedyquadplugin.acticlientset.ActiV1alpha1().ActiNodes(pod.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	//actinodes, err := ap.actinodesLister.ActiNodes(pod.Namespace).Get(name)
 	if err != nil {
-		fmt.Print(err.Error())
+		klog.V(2).Infof("Error : ", err)
 	}
 	klog.V(2).Infof("HERE IS THE ACTINODE ", actinodes)
 
@@ -225,17 +198,16 @@ func (ap *GreedyQuadPlugin) Filter(
 	// If the Node is full (i.e., 4 applications tracked by GreedyQuadPlugin are
 	// already scheduled on it), filter it out.
 	case 4:
-			klog.V(2).Infof("filtering Node %q out because 4 GreedyQuadPlugin applications are already scheduled there", nodeName)
+		klog.V(2).Infof("filtering Node %q out because 4 GreedyQuadPlugin applications are already scheduled there", nodeName)
 		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("Node '%s' already has 2 GreedyQuadPlugin occupants", nodeName))
-		
-		
+
 	// If the existing occupant is slowed down prohibitively much by the
 	// new Pod's attack, filter the Node out.
 	// Now cheking the cases of 1, 2 and 3 pods already being in the Node.
 	case 3:
 		occ1 := occupants[0] // the first, currently scheduled Pod
 		occ2 := occupants[1] // second Pod
-		occ3 := occupants[2] // third one 
+		occ3 := occupants[2] // third one
 		score1, err1 := ap.model.Attack(pod, occ1)
 		if err1 != nil {
 			err1 = fmt.Errorf("new Pod '%s/%s' on Node '%s': %v", occ1.Namespace, occ1.Name, nodeName, err1)
@@ -257,7 +229,7 @@ func (ap *GreedyQuadPlugin) Filter(
 		score := score1 + score2 + score3
 		if score > sla {
 			msg := fmt.Sprintf("filtering Node '%s': new pod '%s/%s' ('%s') incurs huge slowdown on pod '%s/%s' ('%s')",
-				nodeName, pod.Namespace, pod.Name, pod.Labels[greedyquadLabelKey],)
+				nodeName, pod.Namespace, pod.Name, pod.Labels[greedyquadLabelKey])
 			klog.V(2).Infof(msg)
 			return framework.NewStatus(framework.Unschedulable, msg)
 		}
@@ -280,7 +252,7 @@ func (ap *GreedyQuadPlugin) Filter(
 		score := score1 + score2
 		if score > sla {
 			msg := fmt.Sprintf("filtering Node '%s': new pod '%s/%s' ('%s') incurs huge slowdown on pod '%s/%s' ('%s')",
-				nodeName, pod.Namespace, pod.Name, pod.Labels[greedyquadLabelKey],)
+				nodeName, pod.Namespace, pod.Name, pod.Labels[greedyquadLabelKey])
 			klog.V(2).Infof(msg)
 			return framework.NewStatus(framework.Unschedulable, msg)
 		}
@@ -304,6 +276,13 @@ func (ap *GreedyQuadPlugin) Filter(
 	// the single current occupant to be attacked by the new Pod), approve.
 	case 0:
 		klog.V(2).Infof("approving Node %q for pod '%s/%s'", nodeName, pod.Namespace, pod.Name)
+		/*assg := make(map[string][]uint32)
+		corelist := []uint32{0,1}
+		assg["podatest"] = corelist
+		err = ap.updateActiNodeSpec(actinodes, assg)
+		if err != nil {
+		klog.Info("error with updating the actinode", err)
+	} */
 		return framework.NewStatus(framework.Success)
 	// If more than 2 occupants are found to be already scheduled on the
 	// Node at hand, we must have fucked up earlier; report the error.
@@ -331,7 +310,7 @@ func (ap *GreedyQuadPlugin) Score(
 	if err != nil {
 		return -1, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get Node '%s' from snapshot: %v", nodeName, err))
 	}
-	
+
 	// If the given Pod does not have the greedyquadLabelKey, approve it and let
 	// the other plugins decide for its fate.
 	if _, exists := p.Labels[greedyquadLabelKey]; !exists {
@@ -349,35 +328,35 @@ func (ap *GreedyQuadPlugin) Score(
 	}
 
 	// Otherwise, evaluate the slowdown
-	if len(occupants) == 1{
-	occ := occupants[0]
-	scoreFp, err := ap.model.Attack(p, occ)
-	if err != nil {
-		err = fmt.Errorf("new Pod '%s/%s' on Node '%s': %v", occ.Namespace, occ.Name, nodeName, err)
-		klog.Warning(err)
-		return -1, framework.NewStatus(framework.Error, err.Error())
+	if len(occupants) == 1 {
+		occ := occupants[0]
+		scoreFp, err := ap.model.Attack(p, occ)
+		if err != nil {
+			err = fmt.Errorf("new Pod '%s/%s' on Node '%s': %v", occ.Namespace, occ.Name, nodeName, err)
+			klog.Warning(err)
+			return -1, framework.NewStatus(framework.Error, err.Error())
+		}
+		score := int64(ap.model.ToInt64Multiplier() * scoreFp)
+		return score, framework.NewStatus(framework.Success, fmt.Sprintf("Node '%s': interim score = %d", nodeName, score))
 	}
-	score := int64(ap.model.ToInt64Multiplier() * scoreFp)
-	return score, framework.NewStatus(framework.Success, fmt.Sprintf("Node '%s': interim score = %d", nodeName, score))
-	}
-	if len(occupants) == 2{
-	occ1 := occupants[0]
-	occ2 := occupants[1]
-	scoreFp1, err1 := ap.model.Attack(p, occ1)
-	if err1 != nil {
-		err1 = fmt.Errorf("new Pod '%s/%s' on Node '%s': %v", occ1.Namespace, occ1.Name, nodeName, err1)
-		klog.Warning(err1)
-		return -1, framework.NewStatus(framework.Error, err1.Error())
-	}
-	scoreFp2, err2 := ap.model.Attack(p, occ2)
-	if err2 != nil {
-		err2 = fmt.Errorf("new Pod '%s/%s' on Node '%s': %v", occ2.Namespace, occ2.Name, nodeName, err2)
-		klog.Warning(err2)
-		return -1, framework.NewStatus(framework.Error, err2.Error())
-	}
-	scoreFp := scoreFp1 + scoreFp2
-	score := int64(ap.model.ToInt64Multiplier() * scoreFp)
-	return score, framework.NewStatus(framework.Success, fmt.Sprintf("Node '%s': interim score = %d", nodeName, score))
+	if len(occupants) == 2 {
+		occ1 := occupants[0]
+		occ2 := occupants[1]
+		scoreFp1, err1 := ap.model.Attack(p, occ1)
+		if err1 != nil {
+			err1 = fmt.Errorf("new Pod '%s/%s' on Node '%s': %v", occ1.Namespace, occ1.Name, nodeName, err1)
+			klog.Warning(err1)
+			return -1, framework.NewStatus(framework.Error, err1.Error())
+		}
+		scoreFp2, err2 := ap.model.Attack(p, occ2)
+		if err2 != nil {
+			err2 = fmt.Errorf("new Pod '%s/%s' on Node '%s': %v", occ2.Namespace, occ2.Name, nodeName, err2)
+			klog.Warning(err2)
+			return -1, framework.NewStatus(framework.Error, err2.Error())
+		}
+		scoreFp := scoreFp1 + scoreFp2
+		score := int64(ap.model.ToInt64Multiplier() * scoreFp)
+		return score, framework.NewStatus(framework.Success, fmt.Sprintf("Node '%s': interim score = %d", nodeName, score))
 	}
 	//3 occupants now
 	occ1 := occupants[0]
@@ -404,7 +383,7 @@ func (ap *GreedyQuadPlugin) Score(
 	scoreFp := scoreFp1 + scoreFp2 + scoreFp3
 	score := int64(ap.model.ToInt64Multiplier() * scoreFp)
 	return score, framework.NewStatus(framework.Success, fmt.Sprintf("Node '%s': interim score = %d", nodeName, score))
-	
+
 }
 
 // ScoreExtensions returns the GreedyQuadPlugin itself, since it implements the
